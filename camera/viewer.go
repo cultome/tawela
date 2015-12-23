@@ -7,8 +7,6 @@ import (
 	"time"
 )
 
-const uri = "rtsp://192.168.1.128:554/12"
-
 var currentPanDirection CameraDirection
 var lastDirectionChange time.Time
 var cameraIsMoving = false
@@ -27,7 +25,7 @@ func NewViewer() {
 	}
 	defer inst.Release()
 
-	if player, err = loadMedia(uri, inst); err != nil {
+	if player, err = loadMedia(RtspStreamUri, inst); err != nil {
 		fmt.Fprintf(os.Stderr, "[e] Player(): %v", err)
 		return
 	}
