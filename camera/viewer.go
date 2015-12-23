@@ -7,6 +7,12 @@ import (
 	"time"
 )
 
+type screen struct {
+	width, height          float64
+	limR, limL, limT, limB float64
+	limitSizePercentage    float64
+}
+
 type CameraViewer struct {
 	control             *CameraControl
 	currentPanDirection CameraDirection
@@ -15,11 +21,12 @@ type CameraViewer struct {
 	escapeSeqId         int
 	keepPlaying         bool
 	isFullscreen        bool
+	screen              screen
 }
 
 func NewCameraViewer() *CameraViewer {
 	escapeSeq := make([]CameraDirection, 4)
-	return &CameraViewer{NewCameraControl(), Center, time.Now(), escapeSeq, 0, true, false}
+	return &CameraViewer{NewCameraControl(), Center, time.Now(), escapeSeq, 0, true, true, screen{0, 0, 0, 0, 0, 0, 0.15}}
 }
 
 func (viewer *CameraViewer) Start() {
@@ -45,26 +52,29 @@ func (viewer *CameraViewer) Start() {
 		return
 	}
 
-	evt.Attach(vlc.MediaPlayerPositionChanged, viewer.onPositionChange, player)
+	evt.Attach(vlc.MediaPlayerPlaying, viewer.onPlaying, player)
 
 	player.SetMouseInput(false)
 	player.SetKeyInput(false)
-	player.Play()
 
 	if viewer.isFullscreen {
 		player.ToggleFullscreen()
 	}
+
+	player.Play()
 
 	// setting intial position
 	viewer.control.SetPoint(Default)
 
 	for viewer.keepPlaying {
 		time.Sleep(1e8)
+		viewer.readMousePosition(player)
 	}
 
 	player.Stop()
 
 	if viewer.escapeSeqId == 2 {
+		// restoring initial position
 		viewer.control.GotoPoint(Default)
 	}
 }
@@ -91,8 +101,19 @@ func (viewer *CameraViewer) loadMedia(uri string, inst *vlc.Instance) (*vlc.Play
 	return player, nil
 }
 
-func (viewer *CameraViewer) onPositionChange(evt *vlc.Event, data interface{}) {
-	newDirection := viewer.cursorDirection(data.(*vlc.Player))
+func (viewer *CameraViewer) onPlaying(evt *vlc.Event, data interface{}) {
+	width, height, _ := data.(*vlc.Player).Size(0)
+	viewer.screen.width, viewer.screen.height = float64(width), float64(height)
+
+	viewer.screen.limR = viewer.screen.width / (1.0 + viewer.screen.limitSizePercentage)
+	viewer.screen.limL = viewer.screen.width * viewer.screen.limitSizePercentage
+	viewer.screen.limT = viewer.screen.height * viewer.screen.limitSizePercentage
+	viewer.screen.limB = viewer.screen.height / (1.0 + viewer.screen.limitSizePercentage)
+
+}
+
+func (viewer *CameraViewer) readMousePosition(player *vlc.Player) {
+	newDirection := viewer.cursorDirection(player)
 
 	if newDirection != viewer.currentPanDirection {
 		viewer.currentPanDirection = newDirection
@@ -129,11 +150,8 @@ func (viewer *CameraViewer) addToEscapeSequence(direction CameraDirection) {
 }
 
 func (viewer *CameraViewer) cursorDirection(player *vlc.Player) CameraDirection {
-	width, height, _ := player.Size(0)
-	limR, limL, limT, limB := viewer.calculateLimits(float64(width), float64(height), 0.15)
-
 	x, y, _ := player.Cursor(0)
-	panDirection := viewer.cursorPosition(limR, limL, limT, limB, float64(x), float64(y))
+	panDirection := viewer.cursorPosition(viewer.screen.limR, viewer.screen.limL, viewer.screen.limT, viewer.screen.limB, float64(x), float64(y))
 	return panDirection
 }
 
@@ -157,13 +175,4 @@ func (viewer *CameraViewer) cursorPosition(limR, limL, limT, limB float64, x, y 
 		return Down
 	}
 	return Center
-}
-
-func (viewer *CameraViewer) calculateLimits(width, height, percent float64) (float64, float64, float64, float64) {
-	limR := width / (1.0 + percent)
-	limL := width * percent
-	limT := height * percent
-	limB := height / (1.0 + percent)
-
-	return limR, limL, limT, limB
 }
