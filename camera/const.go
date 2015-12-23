@@ -32,9 +32,10 @@ const (
 )
 
 const (
-	CameraIp      = "192.168.1.128"
-	RtspStreamUri = "rtsp://" + CameraIp + ":554/12"
-	Server        = "http://" + CameraIp + "/cgi-bin/hi3510"
-	StepTime      = 2
-	ScanTime      = 20
+	CameraIp            = "192.168.1.128"
+	RtspStreamUri       = "rtsp://" + CameraIp + ":554/12"
+	Server              = "http://" + CameraIp + "/cgi-bin/hi3510"
+	StepTime            = 2
+	ScanTime            = 20
+	VideoFilenameRegexp = "^([\\d]{2})([\\d]{2})([\\d]{2})_([\\d]{2})([\\d]{2})([\\d]{2})\\.mp4$"
 )
