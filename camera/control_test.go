@@ -6,26 +6,30 @@ import (
 )
 
 func TestMove(t *testing.T) {
+	control := NewCameraControl()
+
 	fmt.Println("Moving left...")
-	MoveStep(Left)
+	control.MoveStep(Left)
 	fmt.Println("Moving up...")
-	MoveStep(Up)
+	control.MoveStep(Up)
 	fmt.Println("Moving right...")
-	MoveStep(Right)
+	control.MoveStep(Right)
 	fmt.Println("Moving down...")
-	MoveStep(Down)
+	control.MoveStep(Down)
 
 	fmt.Println("Moving up-right...")
-	MoveStep(UpRight)
+	control.MoveStep(UpRight)
 	fmt.Println("Moving up-left...")
-	MoveStep(UpLeft)
+	control.MoveStep(UpLeft)
 	fmt.Println("Moving down-right...")
-	MoveStep(DownRight)
+	control.MoveStep(DownRight)
 	fmt.Println("Moving down-left...")
-	MoveStep(DownLeft)
+	control.MoveStep(DownLeft)
 }
 
 func TestScan(t *testing.T) {
+	control := NewCameraControl()
+
 	fmt.Println("Scan horizontal...")
-	Scan(Horizontal)
+	control.Scan(Horizontal)
 }

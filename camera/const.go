@@ -12,7 +12,6 @@ const (
 	DownLeft
 	Left
 	Center
-	Stop
 )
 
 type ScanDirection int
@@ -25,9 +24,17 @@ const (
 type CameraPosition int
 
 const (
-	First  CameraPosition = 1
-	Second CameraPosition = 2
-	Third  CameraPosition = 3
-	Fourth CameraPosition = 4
-	Fifth  CameraPosition = 5
+	One     CameraPosition = 1
+	Two     CameraPosition = 2
+	Three   CameraPosition = 3
+	Four    CameraPosition = 4
+	Default CameraPosition = 5
+)
+
+const (
+	CameraIp      = "192.168.1.128"
+	RtspStreamUri = "rtsp://" + CameraIp + ":554/12"
+	Server        = "http://" + CameraIp + "/cgi-bin/hi3510"
+	StepTime      = 2
+	ScanTime      = 20
 )

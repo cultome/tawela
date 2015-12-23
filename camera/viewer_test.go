@@ -3,5 +3,5 @@ package camera
 import "testing"
 
 func TestNewViewer(t *testing.T) {
-	NewViewer()
+	NewCameraViewer().Start()
 }

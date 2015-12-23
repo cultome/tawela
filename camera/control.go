@@ -6,51 +6,73 @@ import (
 	"time"
 )
 
-const (
-	CameraIp      = "192.168.1.128"
-	RtspStreamUri = "rtsp://" + CameraIp + ":554/12"
-	Server        = "http://" + CameraIp + "/cgi-bin/hi3510"
-	StepTime      = 2
-	ScanTime      = 20
-)
-
-func Move(direction CameraDirection) {
-	moveUrl := directionContext(direction)
-	callCamera(moveUrl)
+type CameraControl struct {
+	CameraIsMoving bool
 }
 
-func MoveStep(direction CameraDirection) {
-	moveUrl := directionContext(direction)
-	moveAndStop(moveUrl, StepTime)
+func NewCameraControl() *CameraControl {
+	return &CameraControl{false}
 }
 
-func Scan(direction ScanDirection) {
-	scanUrl := scanContext(direction)
-	moveAndStop(scanUrl, ScanTime)
+func (control *CameraControl) Move(direction CameraDirection) {
+	command := control.directionCommand(direction)
+	control.callCamera(command)
 }
 
-func moveAndStop(context string, wait int) {
-	stopUrl := directionContext(Stop)
-	callCamera(context)
+func (control *CameraControl) MoveStep(direction CameraDirection) {
+	command := control.directionCommand(direction)
+	control.moveAndStop(command, StepTime)
+}
 
+func (control *CameraControl) Scan(direction ScanDirection) {
+	command := control.scanCommand(direction)
+	control.moveAndStop(command, ScanTime)
+}
+
+func (control *CameraControl) Stop() {
+	if control.CameraIsMoving {
+		control.callCamera("/ptzstop.cgi")
+		control.CameraIsMoving = false
+	}
+}
+
+func (control *CameraControl) SetPoint(position CameraPosition) {
+	control.Stop()
+	command := fmt.Sprintf("/ptzsetpoint.cgi?-point=%d", position)
+	control.callCamera(command)
+}
+
+func (control *CameraControl) GotoPoint(position CameraPosition) {
+	control.Stop()
+	command := fmt.Sprintf("/ptzgotopoint.cgi?-point=%d", position)
+	control.callCamera(command)
+}
+
+func (control *CameraControl) moveCamera(command string) {
+	control.Stop()
+	control.callCamera(command)
+	control.CameraIsMoving = true
+}
+
+func (control *CameraControl) moveAndStop(command string, wait int) {
+	control.moveCamera(command)
 	stepTime := time.Duration(wait) * time.Second
 	time.Sleep(stepTime)
-
-	callCamera(stopUrl)
+	control.Stop()
 }
 
-func callCamera(context string) {
-	http.Get(Server + context)
+func (control *CameraControl) callCamera(command string) {
+	http.Get(Server + command)
 }
 
-func scanContext(direction ScanDirection) string {
+func (control *CameraControl) scanCommand(direction ScanDirection) string {
 	if direction == Vertical {
 		return "/ptzctrl.cgi?-act=vscan"
 	}
 	return "/ptzctrl.cgi?-act=hscan"
 }
 
-func directionContext(direction CameraDirection) string {
+func (control *CameraControl) directionCommand(direction CameraDirection) string {
 	switch direction {
 	case UpLeft:
 		return "/ptzctrl.cgi?&-act=upleft"
@@ -68,16 +90,6 @@ func directionContext(direction CameraDirection) string {
 		return "/ptzdown.cgi"
 	case Left:
 		return "/ptzleft.cgi"
-	case Stop:
-		return "/ptzstop.cgi"
 	}
 	return ""
-}
-
-func SetPoint(position CameraPosition) string {
-	return fmt.Sprintf("/ptzsetpoint.cgi?-point=%d", position)
-}
-
-func GotoPoint(position CameraPosition) string {
-	return fmt.Sprintf("/ptzgotopoint.cgi?-point=%v", position)
 }

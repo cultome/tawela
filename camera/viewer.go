@@ -7,13 +7,22 @@ import (
 	"time"
 )
 
-var currentPanDirection CameraDirection
-var lastDirectionChange time.Time
-var cameraIsMoving = false
-var escapeSequence = make([]CameraDirection, 4)
-var keepPlaying = true
+type CameraViewer struct {
+	control             *CameraControl
+	currentPanDirection CameraDirection
+	lastDirectionChange time.Time
+	escapeSequence      []CameraDirection
+	escapeSeqId         int
+	keepPlaying         bool
+	isFullscreen        bool
+}
 
-func NewViewer() {
+func NewCameraViewer() *CameraViewer {
+	escapeSeq := make([]CameraDirection, 4)
+	return &CameraViewer{NewCameraControl(), Center, time.Now(), escapeSeq, 0, true, false}
+}
+
+func (viewer *CameraViewer) Start() {
 	var inst *vlc.Instance
 	var player *vlc.Player
 	var evt *vlc.EventManager
@@ -25,7 +34,7 @@ func NewViewer() {
 	}
 	defer inst.Release()
 
-	if player, err = loadMedia(RtspStreamUri, inst); err != nil {
+	if player, err = viewer.loadMedia(RtspStreamUri, inst); err != nil {
 		fmt.Fprintf(os.Stderr, "[e] Player(): %v", err)
 		return
 	}
@@ -36,33 +45,31 @@ func NewViewer() {
 		return
 	}
 
-	evt.Attach(vlc.MediaPlayerPositionChanged, onPositionChange, player)
+	evt.Attach(vlc.MediaPlayerPositionChanged, viewer.onPositionChange, player)
 
 	player.SetMouseInput(false)
 	player.SetKeyInput(false)
 	player.Play()
-	//player.ToggleFullscreen()
 
-	for keepPlaying {
+	if viewer.isFullscreen {
+		player.ToggleFullscreen()
+	}
+
+	// setting intial position
+	viewer.control.SetPoint(Default)
+
+	for viewer.keepPlaying {
 		time.Sleep(1e8)
 	}
 
 	player.Stop()
+
+	if viewer.escapeSeqId == 2 {
+		viewer.control.GotoPoint(Default)
+	}
 }
 
-func MoveCamera(direction CameraDirection) {
-	cameraIsMoving = true
-	fmt.Printf("[*] Moving camera to %v\n", direction)
-	Move(direction)
-}
-
-func StopCamera() {
-	cameraIsMoving = false
-	fmt.Printf("[*] Stopping camera\n")
-	Move(Stop)
-}
-
-func loadMedia(uri string, inst *vlc.Instance) (*vlc.Player, error) {
+func (viewer *CameraViewer) loadMedia(uri string, inst *vlc.Instance) (*vlc.Player, error) {
 	var media *vlc.Media
 	var player *vlc.Player
 	var err error
@@ -84,49 +91,53 @@ func loadMedia(uri string, inst *vlc.Instance) (*vlc.Player, error) {
 	return player, nil
 }
 
-func onPositionChange(evt *vlc.Event, data interface{}) {
-	newDirection := cursorDirection(data.(*vlc.Player))
+func (viewer *CameraViewer) onPositionChange(evt *vlc.Event, data interface{}) {
+	newDirection := viewer.cursorDirection(data.(*vlc.Player))
 
-	if newDirection != currentPanDirection {
-		currentPanDirection = newDirection
-		lastDirectionChange = time.Now()
-		addToEscapeSequence(currentPanDirection)
+	if newDirection != viewer.currentPanDirection {
+		viewer.currentPanDirection = newDirection
+		viewer.lastDirectionChange = time.Now()
+		viewer.addToEscapeSequence(viewer.currentPanDirection)
 
-		if currentPanDirection != Center {
-			MoveCamera(currentPanDirection)
+		if viewer.currentPanDirection != Center {
+			viewer.control.Move(viewer.currentPanDirection)
 		} else {
-			StopCamera()
+			viewer.control.Stop()
 		}
 	}
 
-	if cameraIsMoving && time.Since(lastDirectionChange) > time.Duration(StepTime)*time.Second {
-		StopCamera()
+	if viewer.control.CameraIsMoving && time.Since(viewer.lastDirectionChange) > time.Duration(StepTime)*time.Second {
+		viewer.control.Stop()
 	}
 
-	if isEscapeSequence() {
-		keepPlaying = false
-		StopCamera()
+	if viewer.escapeSeqId = viewer.isEscapeSequence(); viewer.escapeSeqId != 0 {
+		viewer.keepPlaying = false
 	}
 }
 
-func isEscapeSequence() bool {
-	return escapeSequence[0] == UpLeft && escapeSequence[1] == UpRight && escapeSequence[2] == DownRight && escapeSequence[3] == DownLeft
+func (viewer *CameraViewer) isEscapeSequence() int {
+	if viewer.escapeSequence[0] == UpLeft && viewer.escapeSequence[1] == UpRight && viewer.escapeSequence[2] == DownRight && viewer.escapeSequence[3] == DownLeft {
+		return 1
+	} else if viewer.escapeSequence[0] == UpLeft && viewer.escapeSequence[1] == DownLeft && viewer.escapeSequence[2] == DownRight && viewer.escapeSequence[3] == UpRight {
+		return 2
+	}
+	return 0
 }
 
-func addToEscapeSequence(direction CameraDirection) {
-	escapeSequence = append(escapeSequence, direction)[1:5]
+func (viewer *CameraViewer) addToEscapeSequence(direction CameraDirection) {
+	viewer.escapeSequence = append(viewer.escapeSequence, direction)[1:5]
 }
 
-func cursorDirection(player *vlc.Player) CameraDirection {
+func (viewer *CameraViewer) cursorDirection(player *vlc.Player) CameraDirection {
 	width, height, _ := player.Size(0)
-	limR, limL, limT, limB := calculateLimits(float64(width), float64(height), 0.15)
+	limR, limL, limT, limB := viewer.calculateLimits(float64(width), float64(height), 0.15)
 
 	x, y, _ := player.Cursor(0)
-	panDirection := cursorPosition(limR, limL, limT, limB, float64(x), float64(y))
+	panDirection := viewer.cursorPosition(limR, limL, limT, limB, float64(x), float64(y))
 	return panDirection
 }
 
-func cursorPosition(limR, limL, limT, limB float64, x, y float64) CameraDirection {
+func (viewer *CameraViewer) cursorPosition(limR, limL, limT, limB float64, x, y float64) CameraDirection {
 	switch {
 	case x <= limL && y <= limT:
 		return UpLeft
@@ -148,7 +159,7 @@ func cursorPosition(limR, limL, limT, limB float64, x, y float64) CameraDirectio
 	return Center
 }
 
-func calculateLimits(width, height, percent float64) (float64, float64, float64, float64) {
+func (viewer *CameraViewer) calculateLimits(width, height, percent float64) (float64, float64, float64, float64) {
 	limR := width / (1.0 + percent)
 	limL := width * percent
 	limT := height * percent
