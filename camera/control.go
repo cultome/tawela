@@ -15,21 +15,26 @@ func NewCameraControl() *CameraControl {
 }
 
 func (control *CameraControl) Move(direction CameraDirection) {
+	//fmt.Printf("[*] Moving toward [%v]\n", direction)
 	command := control.directionCommand(direction)
 	control.callCamera(command)
+	control.CameraIsMoving = true
 }
 
 func (control *CameraControl) MoveStep(direction CameraDirection) {
+	//fmt.Printf("[*] Moving one step toward [%v]\n", direction)
 	command := control.directionCommand(direction)
 	control.moveAndStop(command, StepTime)
 }
 
 func (control *CameraControl) Scan(direction ScanDirection) {
+	//fmt.Printf("[*] Scanning [%v]\n", direction)
 	command := control.scanCommand(direction)
 	control.moveAndStop(command, ScanTime)
 }
 
 func (control *CameraControl) Stop() {
+	//fmt.Printf("[*] Stopping\n")
 	if control.CameraIsMoving {
 		control.callCamera("/ptzstop.cgi")
 		control.CameraIsMoving = false
@@ -37,12 +42,15 @@ func (control *CameraControl) Stop() {
 }
 
 func (control *CameraControl) SetPoint(position CameraPosition) {
+	//fmt.Printf("[*] Storing camera position #%v\n", position)
 	control.Stop()
 	command := fmt.Sprintf("/ptzsetpoint.cgi?-point=%d", position)
 	control.callCamera(command)
+	control.wait(1)
 }
 
 func (control *CameraControl) GotoPoint(position CameraPosition) {
+	//fmt.Printf("[*] Restoring camera position #%v\n", position)
 	control.Stop()
 	command := fmt.Sprintf("/ptzgotopoint.cgi?-point=%d", position)
 	control.callCamera(command)
@@ -56,9 +64,13 @@ func (control *CameraControl) moveCamera(command string) {
 
 func (control *CameraControl) moveAndStop(command string, wait int) {
 	control.moveCamera(command)
+	control.wait(wait)
+	control.Stop()
+}
+
+func (control *CameraControl) wait(wait int) {
 	stepTime := time.Duration(wait) * time.Second
 	time.Sleep(stepTime)
-	control.Stop()
 }
 
 func (control *CameraControl) callCamera(command string) {

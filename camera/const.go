@@ -3,7 +3,8 @@ package camera
 type CameraDirection int
 
 const (
-	UpLeft CameraDirection = iota
+	Center CameraDirection = iota
+	UpLeft
 	Up
 	UpRight
 	Right
@@ -11,7 +12,6 @@ const (
 	Down
 	DownLeft
 	Left
-	Center
 )
 
 type ScanDirection int
