@@ -13,53 +13,69 @@ type playbackWindow struct {
 	limitSizePercentage    float64
 }
 
+type viewer interface {
+	registerEventListeners(*vlc.EventManager, *vlc.Player)
+	playLoop(*vlc.Player)
+	keepPlaying() bool
+	isInitialized() bool
+}
+
+type VlcViewer struct {
+	escapeSequence []CameraDirection
+	escapeSeqId    int
+	playing        bool
+	screen         playbackWindow
+	initialized    bool
+}
+
+type VideoViewer struct {
+	*VlcViewer
+}
+
 type CameraViewer struct {
 	control             *CameraControl
 	currentPanDirection CameraDirection
 	lastDirectionChange time.Time
-	escapeSequence      []CameraDirection
-	escapeSeqId         int
-	keepPlaying         bool
-	screen              playbackWindow
-	initialized         bool
+	*VlcViewer
 }
 
-type Viewer interface {
-	RegisterEventListeners(*vlc.EventManager, *vlc.Player)
-	PlayLoop(*vlc.Player)
-	KeepPlaying() bool
-	IsInitialized() bool
+func NewVideoViewer() *VideoViewer {
+	return &VideoViewer{}
 }
 
-func (p *playbackWindow) String() string {
-	return fmt.Sprintf("[%vx%v] R: %v L: %v T: %v B: %v (%v%%)", p.width, p.height, p.limR, p.limL, p.limT, p.limB, p.limitSizePercentage)
+func (viewer *VideoViewer) Play(mediaPath string) {
 }
 
 func NewCameraViewer() *CameraViewer {
 	escapeSeq := make([]CameraDirection, 4)
-	return &CameraViewer{NewCameraControl(), Center, time.Now(), escapeSeq, 0, true, playbackWindow{0, 0, 0, 0, 0, 0, 0.15}, false}
+	vlc := VlcViewer{escapeSeq, 0, true, playbackWindow{0, 0, 0, 0, 0, 0, 0.15}, false}
+	return &CameraViewer{NewCameraControl(), Center, time.Now(), &vlc}
 }
 
-func (viewer *CameraViewer) Start() {
-	preparePlayback(viewer)
+func (viewer *CameraViewer) PlayVideo(videoPath string) {
+	preparePlayback(viewer, videoPath)
 }
 
-func (viewer *CameraViewer) IsInitialized() bool {
+func (viewer *CameraViewer) Play() {
+	preparePlayback(viewer, RtspStreamUri)
+}
+
+func (viewer *CameraViewer) isInitialized() bool {
 	return viewer.initialized
 }
 
-func (viewer *CameraViewer) RegisterEventListeners(evt *vlc.EventManager, player *vlc.Player) {
+func (viewer *CameraViewer) registerEventListeners(evt *vlc.EventManager, player *vlc.Player) {
 	evt.Attach(vlc.MediaPlayerPlaying, viewer.onPlaying, player)
 	evt.Attach(vlc.MediaPlayerPositionChanged, viewer.onPositionChanged, player)
 	evt.Attach(vlc.MediaPlayerStopped, viewer.onStop, player)
 }
 
-func (viewer *CameraViewer) PlayLoop(player *vlc.Player) {
+func (viewer *CameraViewer) playLoop(player *vlc.Player) {
 	readMousePosition(viewer, player)
 }
 
-func (viewer *CameraViewer) KeepPlaying() bool {
-	return viewer.keepPlaying
+func (viewer *CameraViewer) keepPlaying() bool {
+	return viewer.playing
 }
 
 func (viewer *CameraViewer) onPositionChanged(evt *vlc.Event, data interface{}) {
@@ -85,10 +101,10 @@ func (viewer *CameraViewer) onStop(evt *vlc.Event, data interface{}) {
 		// restoring initial position
 		viewer.control.GotoPoint(Default)
 	}
-	viewer.keepPlaying = false
+	viewer.playing = false
 }
 
-func preparePlayback(viewer Viewer) {
+func preparePlayback(viewer viewer, mediaUri string) {
 	var inst *vlc.Instance
 	var player *vlc.Player
 	var evt *vlc.EventManager
@@ -100,7 +116,7 @@ func preparePlayback(viewer Viewer) {
 	}
 	defer inst.Release()
 
-	if player, err = loadMedia(RtspStreamUri, inst); err != nil {
+	if player, err = loadMedia(mediaUri, inst); err != nil {
 		fmt.Fprintf(os.Stderr, "[e] Player(): %v", err)
 		return
 	}
@@ -111,7 +127,7 @@ func preparePlayback(viewer Viewer) {
 		return
 	}
 
-	viewer.RegisterEventListeners(evt, player)
+	viewer.registerEventListeners(evt, player)
 
 	player.SetMouseInput(false)
 	player.SetKeyInput(false)
@@ -119,10 +135,10 @@ func preparePlayback(viewer Viewer) {
 
 	player.Play()
 
-	for viewer.KeepPlaying() {
+	for viewer.keepPlaying() {
 		time.Sleep(1e8)
-		if viewer.IsInitialized() {
-			viewer.PlayLoop(player)
+		if viewer.isInitialized() {
+			viewer.playLoop(player)
 		}
 	}
 
@@ -173,7 +189,7 @@ func readMousePosition(viewer *CameraViewer, player *vlc.Player) {
 	}
 
 	if viewer.escapeSeqId = isEscapeSequence(viewer); viewer.escapeSeqId != 0 {
-		viewer.keepPlaying = false
+		viewer.playing = false
 		viewer.control.Stop()
 	}
 }
