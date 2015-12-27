@@ -7,5 +7,5 @@ func TestPlayCamera(t *testing.T) {
 }
 
 func TestNewVideoViewer(t *testing.T) {
-	NewVideoViewer().Play("/home/csoria/tmp/cam/151223_142945.mp4")
+	NewVideoViewer().Play("file:///home/csoria/tmp/cam/151223_142945.mp4")
 }
